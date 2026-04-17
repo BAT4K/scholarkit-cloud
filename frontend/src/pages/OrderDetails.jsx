@@ -115,7 +115,7 @@ export default function OrderDetails() {
       <ReviewModal
         isOpen={!!reviewItem}
         onClose={() => setReviewItem(null)}
-        productId={reviewItem?.product_id || reviewItem?.productId}
+        productId={reviewItem?.id}
         productName={reviewItem?.name}
       />
     </div>

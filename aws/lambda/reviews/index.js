@@ -136,9 +136,15 @@ function localSentimentAnalysis(text) {
     'loves', 'loved', 'loving', 'perfect', 'awesome', 'outstanding', 'superb',
     'brilliant', 'beautiful', 'best', 'happy', 'pleased', 'satisfied',
     'recommend', 'recommended', 'comfortable', 'soft', 'sturdy', 'durable',
-    'quality', 'affordable', 'worth', 'nice', 'fine', 'well', 'impressed',
+    'affordable', 'worth', 'impressed',
     'delight', 'delighted', 'enjoy', 'enjoyed', 'favorite', 'favourite',
     'breathable', 'stylish', 'elegant', 'premium', 'solid', 'reliable',
+  ]);
+
+  // Weak positives — count as 0.4 instead of 1
+  const WEAK_POSITIVE = new Set([
+    'decent', 'fine', 'nice', 'okay', 'ok', 'alright', 'fair', 'well',
+    'reasonable', 'adequate', 'acceptable',
   ]);
 
   const NEGATIVE_WORDS = new Set([
@@ -147,7 +153,18 @@ function localSentimentAnalysis(text) {
     'broken', 'cheap', 'flimsy', 'defective', 'damaged', 'uncomfortable',
     'ugly', 'overpriced', 'fell', 'apart', 'loose', 'torn', 'ripped',
     'faded', 'shrunk', 'stain', 'stained', 'return', 'returned', 'refund',
-    'regret', 'avoid', 'never', 'worse', 'rubbish', 'junk', 'trash',
+    'regret', 'avoid', 'worse', 'rubbish', 'junk', 'trash',
+  ]);
+
+  // Weak negatives — count as 0.4 instead of 1
+  const WEAK_NEGATIVE = new Set([
+    'small', 'tight', 'large', 'short', 'long', 'thin', 'rough',
+    'itchy', 'stiff', 'heavy', 'slow', 'wrong', 'issue', 'problem',
+  ]);
+
+  // Contrast words — signal mixed sentiment ("good but...")
+  const CONTRAST_WORDS = new Set([
+    'but', 'however', 'although', 'though', 'yet', 'except', 'unfortunately',
   ]);
 
   const INTENSIFIERS = new Set([
@@ -165,9 +182,18 @@ function localSentimentAnalysis(text) {
   let negativeScore = 0;
   let isNegated = false;
   let intensity = 1;
+  let hasContrast = false;  // "but", "however" → signals mixed sentiment
 
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
+
+    // Track contrast words
+    if (CONTRAST_WORDS.has(word)) {
+      hasContrast = true;
+      isNegated = false;
+      intensity = 1;
+      continue;
+    }
 
     // Track negation (flips next sentiment word)
     if (NEGATORS.has(word)) {
@@ -189,18 +215,45 @@ function localSentimentAnalysis(text) {
       }
       isNegated = false;
       intensity = 1;
+    } else if (WEAK_POSITIVE.has(word)) {
+      if (isNegated) {
+        negativeScore += 0.3 * intensity;
+      } else {
+        positiveScore += 0.4 * intensity;  // weak signal
+      }
+      isNegated = false;
+      intensity = 1;
     } else if (NEGATIVE_WORDS.has(word)) {
       if (isNegated) {
-        positiveScore += 0.5 * intensity;  // "not bad" is weakly positive
+        // "not bad" is neutral, not positive
+        positiveScore += 0.2 * intensity;
+        negativeScore += 0.1 * intensity;
       } else {
         negativeScore += 1 * intensity;
       }
       isNegated = false;
       intensity = 1;
+    } else if (WEAK_NEGATIVE.has(word)) {
+      if (!isNegated) {
+        negativeScore += 0.4 * intensity;  // weak signal
+      }
+      isNegated = false;
+      intensity = 1;
     } else {
-      // Reset negation after non-sentiment word (limited scope)
+      // Reset negation after non-sentiment word
       if (isNegated) isNegated = false;
       intensity = 1;
+    }
+  }
+
+  // Contrast words push toward MIXED
+  if (hasContrast && positiveScore > 0 && negativeScore > 0) {
+    // Boost the weaker side to force MIXED classification
+    const min = Math.min(positiveScore, negativeScore);
+    const max = Math.max(positiveScore, negativeScore);
+    if (min / max < 0.4) {
+      if (positiveScore > negativeScore) negativeScore += 0.5;
+      else positiveScore += 0.5;
     }
   }
 

@@ -11,7 +11,6 @@ const SENTIMENT_CONFIG = {
 
 export default function ReviewModal({ isOpen, onClose, productId, productName }) {
   const [reviewText, setReviewText] = useState('');
-  const [rating, setRating] = useState(5);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -21,7 +20,6 @@ export default function ReviewModal({ isOpen, onClose, productId, productName })
   useEffect(() => {
     if (isOpen) {
       setReviewText('');
-      setRating(5);
       setResult(null);
       setError('');
       setTimeout(() => textareaRef.current?.focus(), 100);
@@ -50,7 +48,6 @@ export default function ReviewModal({ isOpen, onClose, productId, productName })
       const res = await axios.post('/api/reviews', {
         productId,
         reviewText: reviewText.trim(),
-        rating,
       }, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -160,30 +157,6 @@ export default function ReviewModal({ isOpen, onClose, productId, productName })
           ) : (
             /* ── Form State ─────────────────────────── */
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Star Rating */}
-              <div>
-                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Rating
-                </label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setRating(star)}
-                      className={`text-2xl transition-transform hover:scale-125 ${
-                        star <= rating ? 'text-amber-400' : 'text-slate-200'
-                      }`}
-                    >
-                      ★
-                    </button>
-                  ))}
-                  <span className="ml-2 self-center text-sm font-semibold text-slate-500">
-                    {rating}/5
-                  </span>
-                </div>
-              </div>
-
               {/* Review Text */}
               <div>
                 <label
