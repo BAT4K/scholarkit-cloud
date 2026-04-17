@@ -18,7 +18,6 @@ export default function Cart() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState('');
 
-  const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || '';
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -68,74 +67,23 @@ export default function Cart() {
     }
   };
 
-  const handleRazorpayPayment = async () => {
-    if (!RAZORPAY_KEY) {
-      toast.error('Razorpay key is missing. Add `VITE_RAZORPAY_KEY` to enable checkout.');
-      return;
-    }
-
-    if (!window.Razorpay) {
-      toast.error('Razorpay checkout is unavailable in this browser session.');
-      return;
-    }
-
+  const handleCheckout = async () => {
     setCheckingOut(true);
 
     try {
-      const orderRes = await axios.post('/api/payment/create-order', {}, getAuthHeaders());
-      const { amount, id: order_id, currency } = orderRes.data;
+      // Direct checkout via DynamoDB TransactWriteItems
+      const res = await axios.post('/api/orders/checkout', {}, getAuthHeaders());
 
-      const options = {
-        key: RAZORPAY_KEY,
-        amount,
-        currency,
-        name: "ScholarKit",
-        description: "School Uniform Purchase",
-        order_id,
+      toast.success('Order placed successfully!');
+      refreshCartCount();
+      setCartItems([]);
 
-        handler: async function (response) {
-          try {
-            const placeOrderRes = await axios.post(
-              '/api/orders', 
-              {
-                paymentId: response.razorpay_payment_id,
-                razorpayOrderId: response.razorpay_order_id,
-                signature: response.razorpay_signature
-              }, 
-              getAuthHeaders()
-            );
-
-            toast.success('Payment successful and your order has been recorded.');
-            refreshCartCount();
-            setCartItems([]);
-
-            navigate('/order-success', {
-              state: { orderId: placeOrderRes.data.orderId }
-            });
-
-          } catch (err) {
-            toast.error(err.response?.data?.message || 'Payment succeeded, but order creation failed.');
-          }
-        },
-
-        prefill: {
-          name: user?.name || "Student",
-          email: user?.email || "student@example.com",
-          contact: "9999999999"
-        },
-        theme: { color: "#2563eb" }
-      };
-
-      const rzp1 = new window.Razorpay(options);
-
-      rzp1.on('payment.failed', function (response) {
-        toast.error(`Payment failed: ${response.error.description}`);
+      navigate('/order-success', {
+        state: { orderId: res.data.orderId }
       });
 
-      rzp1.open();
-
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not initiate the payment gateway.');
+      toast.error(err.response?.data?.message || 'Checkout failed. Please try again.');
     } finally {
       setCheckingOut(false);
     }
@@ -296,17 +244,12 @@ export default function Cart() {
               <span className="text-xl font-bold">Total</span>
               <span className="text-xl font-black text-indigo-700">₹{cartTotal.toFixed(2)}</span>
             </div>
-            {!RAZORPAY_KEY ? (
-              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                Checkout is disabled until `VITE_RAZORPAY_KEY` is configured.
-              </div>
-            ) : null}
             <button
-              onClick={handleRazorpayPayment}
-              disabled={checkingOut || !RAZORPAY_KEY}
+              onClick={handleCheckout}
+              disabled={checkingOut}
               className="w-full rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {checkingOut ? "Starting Payment..." : "Proceed to Payment"}
+              {checkingOut ? "Placing Order..." : "Place Order"}
             </button>
           </div>
         </div>

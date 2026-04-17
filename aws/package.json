@@ -1,0 +1,18 @@
+{
+  "name": "scholarkit-aws",
+  "version": "1.0.0",
+  "description": "AWS infrastructure scripts for ScholarKit serverless migration",
+  "scripts": {
+    "create-table": "node dynamodb/create-table.js",
+    "seed": "node dynamodb/seed-data.js",
+    "setup": "node dynamodb/create-table.js && sleep 5 && node dynamodb/seed-data.js",
+    "build": "bash lambda/build.sh"
+  },
+  "dependencies": {
+    "@aws-sdk/client-comprehend": "^3.1031.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
