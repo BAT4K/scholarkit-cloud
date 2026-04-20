@@ -10,7 +10,8 @@ The system utilizes a fully decoupled, event-driven architecture to ensure maxim
 
 ```mermaid
 graph TD
-    User((User)) -->|HTTPS| CF[Amazon CloudFront]
+    User((User)) -->|Auth| Cognito[Amazon Cognito]
+    User -->|HTTPS| CF[Amazon CloudFront]
     CF -->|Static Assets| S3[Amazon S3]
     User -->|API Calls| APIGW[Amazon API Gateway]
     APIGW -->|Lambda Proxy| Lambda{AWS Lambda}
@@ -21,6 +22,7 @@ graph TD
     Lambda -->|Analyze| AzureAI[[Azure AI Language]]
     Lambda -->|Moderate| AzureVision[[Azure AI Vision]]
     Lambda -->|Secrets| SSM[AWS SSM Parameter Store]
+    SSM -->|Decryption| KMS[AWS KMS]
 ```
 
 ---
