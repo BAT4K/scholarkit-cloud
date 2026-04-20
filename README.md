@@ -1,89 +1,89 @@
-# ScholarKit Cloud 🎓☁️
-### Serverless Multi-Cloud E-Commerce Infrastructure
+# ScholarKit: Enterprise-Grade Serverless E-Commerce Ecosystem 🎓☁️
+### CSD214 Cloud Computing | Final Project Submission | Shiv Nadar University
 
-ScholarKit Cloud is a modern, high-performance migration of a traditional DBMS project into a **Serverless Multi-Cloud Architecture**. Built on AWS and integrated with Azure AI, it demonstrates state-of-the-art cloud patterns including Single Table Design, Global Edge Delivery, and Event-Driven Processing.
+**ScholarKit** is a high-performance, multi-tenant cloud platform engineered for the automated procurement of school supplies and uniforms. This project demonstrates a transition from monolithic legacy systems to a fully decoupled, **Event-Driven Serverless Microservices Architecture**, leveraging high-availability managed services across AWS and Microsoft Azure.
 
 ---
 
-## 🏗️ Cloud Architecture
-The system utilizes a fully decoupled, event-driven architecture to ensure maximum scalability and cost-efficiency.
+## 🏛️ Architecture Overview
+The system architecture follows a **Microservices pattern** where each domain (Product Catalog, Order Management, User Authentication, AI Moderation) is isolated as an independent serverless unit. By utilizing **Amazon API Gateway** and **AWS Lambda**, the infrastructure achieves near-infinite scalability with a "pay-as-you-go" cost model, eliminating the overhead of idle server capacity.
 
-```mermaid
-graph TD
-    User((User)) -->|HTTPS| CF[Amazon CloudFront]
-    CF -->|Static Assets| S3[Amazon S3]
-    User -->|API Calls| APIGW[Amazon API Gateway]
-    APIGW -->|Lambda Proxy| Lambda{AWS Lambda}
-    Lambda -->|CRUD| DynamoDB[(Amazon DynamoDB)]
-    Lambda -->|Queue Order| SQS[Amazon SQS]
-    SQS -->|Trigger| Worker[Order Worker Lambda]
-    Worker -->|ACID Transaction| DynamoDB
-    Lambda -->|Analyze| AzureAI[[Azure AI Language]]
-    Lambda -->|Moderate| AzureVision[[Azure AI Vision]]
-    Lambda -->|Secrets| SSM[AWS SSM Parameter Store]
+---
+
+## 🛠️ Cloud Infrastructure Stack
+
+The implementation utilizes a strategic selection of 10 cloud services, grouped by their architectural role:
+
+### 1. **Compute & Orchestration**
+*   **AWS Lambda**: Executes the core business logic as stateless microservices, providing automated scaling and high availability without managing underlying EC2 instances.
+
+### 2. **Storage & Content Delivery**
+*   **Amazon S3**: Acts as the immutable storage layer for frontend static assets and product media.
+*   **Amazon CloudFront**: A Global Content Delivery Network (CDN) that caches content at edge locations, significantly reducing latency and protecting the origin via SSL/TLS termination.
+
+### 3. **Data Persistence (NoSQL)**
+*   **Amazon DynamoDB**: A fully managed NoSQL database implementing **Single Table Design**. It provides single-digit millisecond latency for the platform's multi-tenant data model using partition key (PK) and sort key (SK) patterns.
+
+### 4. **Identity & Access Management**
+*   **Amazon Cognito**: Handles secure user registration, authentication, and JWT-based session management, providing a robust identity layer without storing sensitive credentials in the primary database.
+
+### 5. **Messaging & Asynchronous Processing**
+*   **Amazon SQS (Simple Queue Service)**: Decouples the Checkout service from Order Processing. This ensures that peak traffic bursts are buffered, maintaining platform stability during high-load periods.
+
+### 6. **Security & Secrets Management**
+*   **AWS SSM Parameter Store**: Centralized management for environment configurations and encrypted API keys.
+*   **AWS KMS (Key Management Service)**: Provides hardware-backed encryption keys to secure `SecureString` parameters in SSM, ensuring end-to-end data confidentiality.
+
+### 7. **Multi-Cloud MLaaS Integration**
+*   **Microsoft Azure AI Language**: Powers the "ScholarKit Sentiment Engine," performing natural language processing (NLP) on user reviews to derive quantitative sentiment insights.
+*   **Microsoft Azure AI Vision**: Implements automated content moderation for product images, ensuring all storefront assets comply with institutional standards.
+
+---
+
+## 🏗️ Engineering & Security Highlights
+
+### 🔐 Origin Access Control (OAC)
+The frontend S3 bucket is strictly isolated from the public internet. Access is granted exclusively to the **Amazon CloudFront** service principal via **Origin Access Control (OAC)**. This prevents "S3 bucket leaking" and ensures all traffic is filtered through edge security policies.
+
+### ⚡ Asynchronous SQS Pipeline
+The platform implements a **non-blocking checkout flow**. When a user places an order, the request is immediately acknowledged and queued in **Amazon SQS**. A background worker Lambda then processes the ACID transaction (stock decrement, order creation) asynchronously, ensuring a highly responsive user experience.
+
+### 🌍 Multi-Cloud MLaaS Strategy
+By integrating AWS compute with Azure's specialized AI models, the project demonstrates a **Multi-Cloud strategy**. This avoids vendor lock-in for high-level services and allows the platform to leverage best-of-breed AI capabilities for sentiment and vision analysis.
+
+---
+
+## 🚀 Local Setup & Deployment
+
+### 1. Prerequisites
+*   Node.js v20+ & npm
+*   AWS CLI configured with appropriate IAM permissions
+*   Terraform or AWS SAM (Optional, for IaC deployment)
+
+### 2. Dependency Installation
+```bash
+# Install root dependencies
+npm install
+
+# Install service-specific dependencies
+cd aws/lambda/shared && npm install
 ```
 
----
-
-## 🚀 Key Cloud Features
-
-### 1. **NoSQL Single Table Design (Amazon DynamoDB)**
-- Migrated from MySQL 3NF to a high-performance **Single Table Design**.
-- Uses **Overloaded GSI (Global Secondary Indexing)** to support complex queries (Orders, Schools, Products) in O(1) time.
-- Implements **Atomic Transactions** using `TransactWriteItems` to maintain ACID compliance for order checkouts and stock consistency.
-
-### 2. **Multi-Cloud AI Strategy**
-- **Sentiment Analysis (Azure AI Language)**: Real-time analysis of user reviews to calculate sentiment scores (Positive, Negative, Mixed).
-- **Image Moderation (Azure AI Vision)**: Automated moderation pipeline to ensure product uploads meet quality and compliance standards.
-- **SSM Integration**: Cross-cloud API keys are secured in **AWS SSM Parameter Store** as `SecureString` types, retrieved at runtime with decryption.
-
-### 3. **Global Edge Delivery (CloudFront)**
-- **Amazon CloudFront** distribution with **Origin Access Control (OAC)** to lock down S3 storage.
-- **SPA Routing Support**: Custom error responses map 403/404 errors to `index.html` with a 200 status, enabling client-side React Router navigation.
-- **HTTPS Enforcement**: 100% SSL/TLS encryption for all traffic.
-
-### 4. **Event-Driven Order Processing**
-- **Amazon SQS** decouples the checkout API from the heavy lifting of inventory updates and email notifications.
-- The `Order Worker` Lambda ensures reliable, asynchronous processing of the order queue, preventing API timeouts during peak traffic.
-
----
-
-## 🛠️ Tech Stack
-- **Frontend:** React 18, Tailwind CSS v4, Lucide Icons.
-- **Compute:** AWS Lambda (Node.js 22.x).
-- **Storage:** Amazon S3 (Frontend), Amazon DynamoDB (NoSQL Data).
-- **API:** Amazon API Gateway (REST).
-- **AI Services:** Azure AI Language, Azure AI Vision.
-- **Security:** AWS IAM, AWS SSM, JWT Authentication.
-
----
-
-## ⚙️ Deployment & Infrastructure
-
-### 1. Deploying Backend (Lambda)
+### 3. Deployment Pipeline
 ```bash
-# Build and package all functions
+# Build Lambda artifacts
 bash aws/lambda/build.sh
 
-# Update specific function (e.g., Sentiment Engine)
-aws lambda update-function-code --function-name sk-create-review --zip-file fileb://aws/deploy/sk-create-review.zip
-```
-
-### 2. Deploying Edge (CloudFront)
-```bash
-# Initialize Global Edge Delivery and S3 Lockdown
+# Deploy Frontend to S3 and CloudFront
 bash scripts/deploy_cloudfront.sh
 ```
 
 ---
 
-## 📊 Cloud Auditing & Monitoring
-- **Amazon CloudWatch**: Detailed logging for sentiment analysis mapping and order worker performance.
-- **Azure AI Metrics**: Monitoring sentiment classification confidence and API latency.
+## 📊 Academic Context
+*   **Course:** CSD214 - Cloud Computing
+*   **Instructor:** Department of Computer Science & Engineering
+*   **Institution:** Shiv Nadar University (SNU), Delhi-NCR
+*   **Submission Date:** April 2026
 
----
-
-## 🔗 Live Production
-**Production URL:** [https://d152bwhizx9644.cloudfront.net](https://d152bwhizx9644.cloudfront.net)
-
-*Project developed for the Cloud Computing (C-234) Final Submission.*
+*Developed by: BAT4K (Student ID: CSD214-FINAL)*
