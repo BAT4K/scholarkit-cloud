@@ -1,12 +1,50 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { 
+  ThumbsUp, 
+  ThumbsDown, 
+  Minus, 
+  Orbit, 
+  X, 
+  Sparkles, 
+  Loader2, 
+  ShieldCheck 
+} from 'lucide-react';
 
-// ── Sentiment colours & labels ──────────────────────────
+// ── Sentiment Config ──────────────────────────
 const SENTIMENT_CONFIG = {
-  POSITIVE: { color: 'emerald', emoji: '😊', label: 'Positive' },
-  NEGATIVE: { color: 'rose',    emoji: '😞', label: 'Negative' },
-  MIXED:    { color: 'amber',   emoji: '🤔', label: 'Mixed'    },
-  NEUTRAL:  { color: 'slate',   emoji: '😐', label: 'Neutral'  },
+  POSITIVE: { 
+    color: 'emerald', 
+    icon: ThumbsUp, 
+    label: 'Positive',
+    bg: 'from-emerald-500/10 to-emerald-500/5',
+    text: 'text-emerald-700',
+    bar: 'bg-emerald-500'
+  },
+  NEGATIVE: { 
+    color: 'rose',    
+    icon: ThumbsDown, 
+    label: 'Negative',
+    bg: 'from-rose-500/10 to-rose-500/5',
+    text: 'text-rose-700',
+    bar: 'bg-rose-500'
+  },
+  MIXED: { 
+    color: 'amber',   
+    icon: Orbit, 
+    label: 'Mixed',
+    bg: 'from-amber-500/10 to-amber-500/5',
+    text: 'text-amber-700',
+    bar: 'bg-amber-500'
+  },
+  NEUTRAL: { 
+    color: 'slate',   
+    icon: Minus, 
+    label: 'Neutral',
+    bg: 'from-slate-500/10 to-slate-500/5',
+    text: 'text-slate-700',
+    bar: 'bg-slate-500'
+  },
 };
 
 export default function ReviewModal({ isOpen, onClose, productId, productName }) {
@@ -45,8 +83,7 @@ export default function ReviewModal({ isOpen, onClose, productId, productName })
 
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('/api/reviews', {
-        productId,
+      const res = await axios.post(`/api/products/${productId}/reviews`, {
         reviewText: reviewText.trim(),
       }, {
         headers: { Authorization: `Bearer ${token}` },
@@ -60,149 +97,168 @@ export default function ReviewModal({ isOpen, onClose, productId, productName })
     }
   };
 
+  const sentimentInfo = result?.sentiment ? SENTIMENT_CONFIG[result.sentiment] || SENTIMENT_CONFIG.NEUTRAL : null;
+  const Icon = sentimentInfo?.icon;
+
+  const getEngineLabel = (engine) => {
+    if (engine === 'HUGGING_FACE') return 'Hugging Face AI';
+    if (engine === 'GCP_NLP') return 'Google Cloud NLP';
+    if (engine === 'COMPREHEND') return 'Amazon Comprehend';
+    if (engine === 'AZURE_AI_LANGUAGE') return 'Azure AI Language';
+    return 'AI Engine';
+  };
+
   if (!isOpen) return null;
 
-  const sentimentInfo = result?.sentiment ? SENTIMENT_CONFIG[result.sentiment] || SENTIMENT_CONFIG.NEUTRAL : null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+      {/* Modal Content */}
+      <div className="glass-card relative w-full max-w-lg border border-white/60 bg-white/90 shadow-2xl backdrop-blur-xl">
         {/* Header */}
-        <div className="border-b border-slate-100 bg-slate-50 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.25em] text-indigo-600">
-                Leave a review
+        <div className="flex items-start justify-between border-b border-slate-200/60 px-6 py-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
+                AI-Powered Review
               </p>
-              <h2 className="mt-1 text-lg font-bold text-slate-900 line-clamp-1">
-                {productName}
-              </h2>
             </div>
-            <button
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
-            >
-              ✕
-            </button>
+            <h2 className="mt-1.5 text-xl font-bold text-slate-900 line-clamp-1">
+              {productName}
+            </h2>
           </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="px-6 py-6">
           {/* ── Success State ───────────────────────── */}
           {result ? (
-            <div className="space-y-5">
-              {/* Sentiment Badge */}
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
-                <span className="text-5xl">{sentimentInfo?.emoji}</span>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-slate-500">AI Sentiment Analysis</p>
-                  <p className={`mt-1 text-2xl font-black text-${sentimentInfo?.color}-600`}>
-                    {sentimentInfo?.label}
-                  </p>
+            <div className="space-y-6">
+              {/* Premium Sentiment Badge */}
+              <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${sentimentInfo?.bg} border border-${sentimentInfo?.color}-100 p-8 text-center shadow-inner`}>
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
+                  {Icon && <Icon className={`h-8 w-8 ${sentimentInfo?.text}`} strokeWidth={2.5} />}
                 </div>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  Analysis Result
+                </p>
+                <p className={`mt-1 text-3xl font-black tracking-tight ${sentimentInfo?.text}`}>
+                  {sentimentInfo?.label}
+                </p>
+                {/* Decorative blurred blob */}
+                <div className={`absolute -right-12 -top-12 h-32 w-32 rounded-full bg-${sentimentInfo?.color}-400/20 blur-2xl`} />
               </div>
 
-              {/* Confidence Bars */}
+              {/* Confidence Breakdown - Data Viz Style */}
               {result.sentimentScore && (
-                <div className="space-y-2">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Confidence Breakdown
+                <div className="rounded-2xl border border-slate-200/60 bg-white/50 p-5 shadow-sm">
+                  <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Confidence Distribution
                   </p>
-                  {Object.entries(result.sentimentScore).map(([key, value]) => (
-                    <div key={key} className="flex items-center gap-3">
-                      <span className="w-16 text-xs font-semibold capitalize text-slate-500">
-                        {key}
-                      </span>
-                      <div className="flex-1 overflow-hidden rounded-full bg-slate-100 h-2.5">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${
-                            key === 'positive' ? 'bg-emerald-500' :
-                            key === 'negative' ? 'bg-rose-500' :
-                            key === 'mixed'    ? 'bg-amber-500' :
-                                                 'bg-slate-400'
-                          }`}
-                          style={{ width: `${Math.round(value * 100)}%` }}
-                        />
-                      </div>
-                      <span className="w-10 text-right text-xs font-bold text-slate-600">
-                        {Math.round(value * 100)}%
-                      </span>
-                    </div>
-                  ))}
+                  <div className="space-y-3">
+                    {Object.entries(result.sentimentScore).map(([key, value]) => {
+                      const config = SENTIMENT_CONFIG[key.toUpperCase()] || SENTIMENT_CONFIG.NEUTRAL;
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          <span className="w-16 text-xs font-bold capitalize text-slate-600">
+                            {key}
+                          </span>
+                          <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out ${config.bar}`}
+                              style={{ width: `${Math.round(value * 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right text-xs font-bold text-slate-700">
+                            {Math.round(value * 100)}%
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
               {/* Engine Tag */}
               {result.engine && (
-                <p className="text-center text-[11px] font-semibold text-slate-400">
-                  Powered by {result.engine === 'COMPREHEND' ? 'Amazon Comprehend' : 'Local NLP Engine'}
-                </p>
+                <div className="flex items-center justify-center gap-1.5 text-slate-400">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <p className="text-[11px] font-semibold uppercase tracking-wider">
+                    Processed by {getEngineLabel(result.engine)}
+                  </p>
+                </div>
               )}
 
               <button
                 onClick={onClose}
-                className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700"
+                className="btn-primary w-full py-3 shadow-lg"
               >
                 Done
               </button>
             </div>
           ) : (
             /* ── Form State ─────────────────────────── */
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Review Text */}
-              <div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Review Text Area */}
+              <div className="group">
                 <label
                   htmlFor="review-text"
-                  className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400"
+                  className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors group-focus-within:text-primary"
                 >
-                  Your review
+                  Your Perspective
                 </label>
                 <textarea
                   ref={textareaRef}
                   id="review-text"
-                  rows={4}
+                  rows={5}
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Tell us about your experience with this product..."
-                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                  placeholder="Share your detailed experience. Our AI will analyze the sentiment of your feedback..."
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white/50 px-4 py-3 text-sm text-slate-800 shadow-sm backdrop-blur-sm placeholder:text-slate-400 focus:border-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all duration-300"
                   disabled={loading}
                 />
-                <p className="mt-1 text-right text-[11px] text-slate-400">
-                  {reviewText.length} characters
-                </p>
+                <div className="mt-2 flex items-center justify-between">
+                  <p className="text-[11px] font-medium text-slate-400">
+                    {reviewText.length} characters
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    Minimum 10 chars for accurate analysis
+                  </p>
+                </div>
               </div>
 
-              {/* Error */}
+              {/* Error Alert */}
               {error && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
+                <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm font-medium text-rose-700 backdrop-blur-sm">
                   {error}
                 </div>
               )}
 
-              {/* Submit */}
+              {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || !reviewText.trim()}
-                className="w-full rounded-xl bg-indigo-600 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                disabled={loading || reviewText.trim().length < 10}
+                className="btn-primary relative w-full overflow-hidden py-3 shadow-lg disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
               >
                 {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Analyzing Sentiment…
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing Sentiment...
                   </span>
                 ) : (
-                  'Submit Review'
+                  'Submit for Analysis'
                 )}
               </button>
             </form>

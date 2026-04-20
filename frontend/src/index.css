@@ -2,14 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scrollbar-gutter: stable;
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+    font-family: "Plus Jakarta Sans", sans-serif;
+  }
+  html, body {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight text-slate-900 font-bold;
+  }
 }
 
-html, body {
-  scroll-behavior: smooth;
-}
+@layer components {
+  /* Generic UI Card */
+  .glass-card {
+    @apply relative overflow-hidden rounded-2xl border border-white/50 bg-white/80 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.04)] backdrop-blur-lg transition-all duration-300 hover:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.08)];
+  }
 
-body {
-  @apply bg-gray-50 text-gray-900;
+  /* Universal Input Fields */
+  input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
+    @apply rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 shadow-sm transition-all duration-300 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10;
+  }
+
+  /* Universal Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary-dark hover:shadow-md hover:shadow-primary/30 active:translate-y-0 active:shadow-sm disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-md active:translate-y-0 active:bg-slate-100 disabled:pointer-events-none disabled:opacity-50;
+  }
+  
+  .badge-primary {
+    @apply inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-primary-dark border border-indigo-100;
+  }
+  
+  .badge-danger {
+    @apply inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-700 border border-rose-100;
+  }
+  
+  .badge-success {
+    @apply inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-100;
+  }
 }

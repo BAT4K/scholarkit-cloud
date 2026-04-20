@@ -1,71 +1,89 @@
-# ScholarKit 🎓
-### Multi-Vendor E-Commerce Database System
+# ScholarKit Cloud 🎓☁️
+### Serverless Multi-Cloud E-Commerce Infrastructure
 
-ScholarKit is a comprehensive full-stack solution for school uniform procurement, built to demonstrate advanced DBMS concepts including ACID transactions, stored procedures, triggers, and analytical views.
+ScholarKit Cloud is a modern, high-performance migration of a traditional DBMS project into a **Serverless Multi-Cloud Architecture**. Built on AWS and integrated with Azure AI, it demonstrates state-of-the-art cloud patterns including Single Table Design, Global Edge Delivery, and Event-Driven Processing.
 
 ---
 
-## 🚀 Getting Started
+## 🏗️ Cloud Architecture
+The system utilizes a fully decoupled, event-driven architecture to ensure maximum scalability and cost-efficiency.
 
-### 1. Prerequisites
-- **MySQL 8.0+**
-- **Node.js 18+**
-- **Cloudinary Account** (for image uploads)
-- **Razorpay Account** (for test payments)
-
-### 2. Database Setup
-1. Create a database named `scholarkit_dbms`.
-2. Run the migration scripts in order:
-   ```bash
-   mysql -u root -p scholarkit_dbms < production_dump.sql
-   mysql -u root -p scholarkit_dbms < scripts/migration_v2_part1.sql
-   mysql -u root -p scholarkit_dbms < scripts/migration_v2_part2.sql
-   ```
-
-### 3. Backend Configuration
-Create a `.env` file in the `backend/` directory:
-```env
-DB_HOST=127.0.0.1
-DB_USER=your_user
-DB_PASSWORD=your_password
-DB_NAME=scholarkit_dbms
-JWT_SECRET=your_secret
-RAZORPAY_KEY_ID=your_key
-RAZORPAY_KEY_SECRET=your_secret
-CLOUDINARY_CLOUD_NAME=your_name
-CLOUDINARY_API_KEY=your_key
-CLOUDINARY_API_SECRET=your_secret
+```mermaid
+graph TD
+    User((User)) -->|HTTPS| CF[Amazon CloudFront]
+    CF -->|Static Assets| S3[Amazon S3]
+    User -->|API Calls| APIGW[Amazon API Gateway]
+    APIGW -->|Lambda Proxy| Lambda{AWS Lambda}
+    Lambda -->|CRUD| DynamoDB[(Amazon DynamoDB)]
+    Lambda -->|Queue Order| SQS[Amazon SQS]
+    SQS -->|Trigger| Worker[Order Worker Lambda]
+    Worker -->|ACID Transaction| DynamoDB
+    Lambda -->|Analyze| AzureAI[[Azure AI Language]]
+    Lambda -->|Moderate| AzureVision[[Azure AI Vision]]
+    Lambda -->|Secrets| SSM[AWS SSM Parameter Store]
 ```
 
-### 4. Installation & Launch
+---
+
+## 🚀 Key Cloud Features
+
+### 1. **NoSQL Single Table Design (Amazon DynamoDB)**
+- Migrated from MySQL 3NF to a high-performance **Single Table Design**.
+- Uses **Overloaded GSI (Global Secondary Indexing)** to support complex queries (Orders, Schools, Products) in O(1) time.
+- Implements **Atomic Transactions** using `TransactWriteItems` to maintain ACID compliance for order checkouts and stock consistency.
+
+### 2. **Multi-Cloud AI Strategy**
+- **Sentiment Analysis (Azure AI Language)**: Real-time analysis of user reviews to calculate sentiment scores (Positive, Negative, Mixed).
+- **Image Moderation (Azure AI Vision)**: Automated moderation pipeline to ensure product uploads meet quality and compliance standards.
+- **SSM Integration**: Cross-cloud API keys are secured in **AWS SSM Parameter Store** as `SecureString` types, retrieved at runtime with decryption.
+
+### 3. **Global Edge Delivery (CloudFront)**
+- **Amazon CloudFront** distribution with **Origin Access Control (OAC)** to lock down S3 storage.
+- **SPA Routing Support**: Custom error responses map 403/404 errors to `index.html` with a 200 status, enabling client-side React Router navigation.
+- **HTTPS Enforcement**: 100% SSL/TLS encryption for all traffic.
+
+### 4. **Event-Driven Order Processing**
+- **Amazon SQS** decouples the checkout API from the heavy lifting of inventory updates and email notifications.
+- The `Order Worker` Lambda ensures reliable, asynchronous processing of the order queue, preventing API timeouts during peak traffic.
+
+---
+
+## 🛠️ Tech Stack
+- **Frontend:** React 18, Tailwind CSS v4, Lucide Icons.
+- **Compute:** AWS Lambda (Node.js 22.x).
+- **Storage:** Amazon S3 (Frontend), Amazon DynamoDB (NoSQL Data).
+- **API:** Amazon API Gateway (REST).
+- **AI Services:** Azure AI Language, Azure AI Vision.
+- **Security:** AWS IAM, AWS SSM, JWT Authentication.
+
+---
+
+## ⚙️ Deployment & Infrastructure
+
+### 1. Deploying Backend (Lambda)
 ```bash
-# Install backend dependencies
-cd backend && npm install
-npm start
+# Build and package all functions
+bash aws/lambda/build.sh
 
-# Install frontend dependencies
-cd ../frontend && npm install
-npm start
+# Update specific function (e.g., Sentiment Engine)
+aws lambda update-function-code --function-name sk-create-review --zip-file fileb://aws/deploy/sk-create-review.zip
+```
+
+### 2. Deploying Edge (CloudFront)
+```bash
+# Initialize Global Edge Delivery and S3 Lockdown
+bash scripts/deploy_cloudfront.sh
 ```
 
 ---
 
-## 🛠️ Advanced Database Features
-
-| Feature | Implementation | Purpose |
-| :--- | :--- | :--- |
-| **ACID Transactions** | `PlaceOrder` Stored Procedure | Ensures atomic checkouts and stock consistency. |
-| **SQL Cursors** | `CalculateTotalInventoryValue` | Iterative inventory audit logic. |
-| **Triggers** | `before_product_price_update` | Automatic price history logging for auditing. |
-| **Window Functions** | `vw_top_products_per_school` | Analytical ranking of products without complex app-logic. |
-| **Views** | `vw_user_recommendations` | Personalized recommendation engine. |
-| **Normalization** | 3rd Normal Form (3NF) | Reduced redundancy and optimized storage. |
+## 📊 Cloud Auditing & Monitoring
+- **Amazon CloudWatch**: Detailed logging for sentiment analysis mapping and order worker performance.
+- **Azure AI Metrics**: Monitoring sentiment classification confidence and API latency.
 
 ---
 
-## 🔗 References & Credits
-- **UI Design:** Inspired by modern B2C platforms (Zappos, Nike).
-- **Security:** Follows [OWASP Cheat Sheets](https://cheatsheetseries.owasp.org/) for JWT and hashing.
-- **Database:** Standard SQL patterns from [MySQL 8.0 Reference Manual](https://dev.mysql.com/doc/refman/8.0/en/).
-- **Icons:** [Lucide React](https://lucide.dev/).
-- **Toast Notifications:** [React Hot Toast](https://react-hot-toast.com/).
+## 🔗 Live Production
+**Production URL:** [https://d152bwhizx9644.cloudfront.net](https://d152bwhizx9644.cloudfront.net)
+
+*Project developed for the Cloud Computing (C-234) Final Submission.*

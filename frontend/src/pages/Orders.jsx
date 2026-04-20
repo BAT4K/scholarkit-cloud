@@ -35,7 +35,7 @@ export default function Orders() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
-        <p className="text-sm font-black uppercase tracking-[0.3em] text-indigo-600">Order history</p>
+        <p className="text-sm font-black uppercase tracking-[0.3em] text-primary">Order history</p>
         <h1 className="mt-3 text-4xl font-black text-slate-900">My Orders</h1>
       </div>
 
@@ -48,13 +48,13 @@ export default function Orders() {
         <EmptyState
           title="No orders yet"
           description="Once you complete checkout, your order history will appear here."
-          action={<Link to="/shop" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">Start shopping</Link>}
+          action={<Link to="/shop" className="btn-primary">Start shopping</Link>}
         />
       ) : (
         <div className="space-y-6">
           {orders.map((order) => (
-            <div key={order.id} className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
-              <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div key={order.id} className="glass-card">
+              <div className="flex flex-col gap-4 border-b border-slate-200/60 bg-slate-50/40 px-8 py-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-6 text-sm">
                   <div>
                     <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Order Placed</p>
@@ -88,7 +88,7 @@ export default function Orders() {
                       href={`https://www.delhivery.com/track/?ref=${order.tracking_number}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-primary-dark transition hover:bg-slate-100"
                     >
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                       Track via Delhivery: {order.tracking_number}
@@ -97,34 +97,34 @@ export default function Orders() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-5 p-6">
-                <div className="flex w-full gap-3 overflow-x-auto">
+              <div className="flex flex-col gap-6 p-8">
+                <div className="flex w-full gap-4 overflow-x-auto pb-2">
                   {(order.items || []).slice(0, 4).map((item, index) => {
                     if (index === 3 && order.items.length > 4) {
                       return (
-                        <div key="more" className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-xs font-bold text-slate-500">
+                        <div key="more" className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-sm font-bold text-slate-500">
                           +{order.items.length - 3} more
                         </div>
                       );
                     }
                     
                     return (
-                      <div key={index} className="group relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                      <div key={index} className="group relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-2">
                         <img
                           src={resolveImageUrl(item.image_url, item.name)}
                           alt={item.name}
                           onError={(event) => attachFallback(event, item.name)}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain mix-blend-multiply contrast-[1.05] brightness-[1.05]"
                         />
                         
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
                           <span className="text-[10px] text-white font-medium text-center px-1 line-clamp-2">
                             {item.name}
                           </span>
                         </div>
 
                         {item.quantity > 1 && (
-                          <div className="absolute top-0 right-0 bg-gray-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-bl shadow-sm">
+                          <div className="absolute top-0 right-0 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl shadow-sm">
                             x{item.quantity}
                           </div>
                         )}
@@ -132,10 +132,13 @@ export default function Orders() {
                     );
                   })}
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100/50">
+                  <p className="text-sm font-semibold text-slate-500">
+                    {order.items?.length || 0} items in this order
+                  </p>
                   <Link
                     to={`/orders/${order.id}`}
-                    className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-700"
+                    className="btn-secondary"
                   >
                     View order details
                   </Link>

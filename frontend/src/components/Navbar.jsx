@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import Logo from './Logo';
 import NotificationBell from './NotificationBell';
+import { ShoppingCart, Menu, X } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -23,8 +24,8 @@ export default function Navbar() {
   };
 
   const navLinkClass = ({ active } = {}) =>
-    `rounded-xl px-3 py-2 text-sm font-semibold transition ${
-      active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-indigo-700'
+    `rounded-lg px-3 py-2 text-sm font-semibold transition ${
+      active ? 'bg-slate-50 text-primary-dark' : 'text-slate-600 hover:bg-slate-100 hover:text-primary-dark'
     }`;
 
   const closeMenu = () => setMenuOpen(false);
@@ -69,14 +70,12 @@ export default function Navbar() {
 
             <Link
               to={user ? '/cart' : '/login'}
-              className="relative rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 hover:text-indigo-700"
+              className="relative rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-primary-dark"
               onClick={closeMenu}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.29 2.29A1 1 0 005.41 17H17m0 0a2 2 0 100 4 2 2 0 000-4Zm-8 2a2 2 0 11-4 0 2 2 0 014 0Z" />
-              </svg>
+              <ShoppingCart className="h-6 w-6 stroke-[1.5]" />
               {cartCount > 0 && (
-                <span className="absolute right-0 top-0 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow-sm">
+                <span className="absolute right-0 top-0 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
                   {cartCount}
                 </span>
               )}
@@ -85,23 +84,23 @@ export default function Navbar() {
             <div className="hidden items-center gap-3 border-l border-slate-200 pl-3 sm:flex">
               {user ? (
                 <>
-                  <div className="hidden text-right md:block">
+                  <div className="hidden text-right md:block shrink-0 min-w-max">
                     <p className="text-sm font-semibold text-slate-800">Hi, {user.name || user.email}</p>
                     <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{user.role || 'customer'}</p>
                   </div>
                   <button
                     onClick={handleLogout}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-rose-200 hover:text-rose-600"
+                    className="btn-secondary px-4 py-2"
                   >
                     Logout
                   </button>
                 </>
               ) : (
                 <>
-                  <Link to="/login" className="text-sm font-semibold text-slate-600 transition hover:text-indigo-700">
+                  <Link to="/login" className="text-sm font-semibold text-slate-600 transition hover:text-primary-dark mr-2">
                     Login
                   </Link>
-                  <Link to="/register" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                  <Link to="/register" className="btn-primary px-4 py-2">
                     Register
                   </Link>
                 </>
@@ -111,12 +110,10 @@ export default function Navbar() {
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className="rounded-xl p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
+              className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 lg:hidden"
               aria-label="Toggle navigation"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={menuOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
-              </svg>
+              {menuOpen ? <X className="h-6 w-6 stroke-[1.5]" /> : <Menu className="h-6 w-6 stroke-[1.5]" />}
             </button>
           </div>
         </div>
@@ -147,15 +144,15 @@ export default function Navbar() {
               ) : null}
               <div className="mt-3 border-t border-slate-200 pt-3">
                 {user ? (
-                  <button onClick={handleLogout} className="w-full rounded-xl border border-slate-200 px-4 py-2 text-left text-sm font-semibold text-slate-700">
+                  <button onClick={handleLogout} className="btn-secondary w-full">
                     Logout
                   </button>
                 ) : (
-                  <div className="flex gap-2">
-                    <Link to="/login" onClick={closeMenu} className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-700">
+                  <div className="flex gap-3">
+                    <Link to="/login" onClick={closeMenu} className="btn-secondary flex-1">
                       Login
                     </Link>
-                    <Link to="/register" onClick={closeMenu} className="flex-1 rounded-xl bg-indigo-600 px-4 py-2 text-center text-sm font-semibold text-white">
+                    <Link to="/register" onClick={closeMenu} className="btn-primary flex-1">
                       Register
                     </Link>
                   </div>

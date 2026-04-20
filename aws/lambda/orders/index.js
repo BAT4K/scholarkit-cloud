@@ -24,11 +24,10 @@ const { TABLE_NAME, keys, ENTITY_TYPES } = require('../shared/tableConfig');
 const {
   GetCommand,
   QueryCommand,
-  TransactWriteCommand,
 } = require('@aws-sdk/lib-dynamodb');
-const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
 
-const sns = new SNSClient({});
+const sqs = new SQSClient({});
 const PRODUCT_PLACEHOLDER = 'https://placehold.co/600x400/e2e8f0/1e3a8a?text=ScholarKit';
 
 // ── Handler & Router ────────────────────────────────────
@@ -131,171 +130,36 @@ async function placeOrder(user) {
   const orderId  = Date.now();
   const createdAt = new Date().toISOString();
 
-  // ── 5. Get user info for denormalisation ───────────
-  const userResult = await docClient.send(new GetCommand({
-    TableName: TABLE_NAME,
-    Key: { PK: keys.userPK(user.id), SK: keys.userSK() },
-  }));
-  const userName  = userResult.Item?.name  || user.name  || '';
-  const userEmail = userResult.Item?.email || user.email || '';
+  // ── 5. Push to SQS for background processing ────────
+  const queueUrl = process.env.SQS_QUEUE_URL;
+  if (!queueUrl) {
+    return error('Checkout failed: Order queue not configured.', 500);
+  }
 
-  // ── 6. Build the atomic transaction ───────────────
-  const transactItems = [];
-
-  // 6a. CREATE ORDER ITEM (under user's partition)
-  transactItems.push({
-    Put: {
-      TableName: TABLE_NAME,
-      Item: {
-        PK:         keys.userPK(user.id),
-        SK:         keys.orderSK(orderId),
-        GSI1PK:     keys.allOrdersGSI(),
-        GSI1SK:     keys.orderGSI1SK(createdAt, orderId),
-        entityType: ENTITY_TYPES.ORDER,
-        orderId,
-        userId:     user.id,
-        totalAmount,
-        status:     'Paid',
-        createdAt,
+  try {
+    await sqs.send(new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify({
+        user,
+        cartItems,
+        productData,
+        subtotal,
         shippingFee,
-        trackingNumber: null,
-        userName,
-        userEmail,
-      },
-    },
-  });
-
-  for (const ci of cartItems) {
-    const product = productData[ci.productId];
-
-    // 6b. CREATE ORDER LINE ITEM (denormalised with product info)
-    transactItems.push({
-      Put: {
-        TableName: TABLE_NAME,
-        Item: {
-          PK:         keys.orderItemPK(orderId),
-          SK:         `ITEM#${ci.productId}#${ci.size}`,
-          entityType: ENTITY_TYPES.ORDER_ITEM,
-          orderId,
-          productId:       ci.productId,
-          quantity:        ci.quantity,
-          priceAtPurchase: product.price,
-          productName:     product.name,
-          productCategory: product.category || null,
-          productImageUrl: product.imageUrl || null,
-        },
-      },
-    });
-
-    // 6c. DECREMENT PRODUCT STOCK (with guard against negative)
-    transactItems.push({
-      Update: {
-        TableName: TABLE_NAME,
-        Key: { PK: keys.productPK(ci.productId), SK: keys.productSK() },
-        UpdateExpression: 'SET stock = stock - :qty',
-        ConditionExpression: 'stock >= :qty',
-        ExpressionAttributeValues: { ':qty': ci.quantity },
-      },
-    });
-
-    // 6d. DELETE CART ITEM
-    transactItems.push({
-      Delete: {
-        TableName: TABLE_NAME,
-        Key: { PK: keys.userPK(user.id), SK: ci.SK },
-      },
-    });
-  }
-
-  // ── 7. Execute atomic transaction ─────────────────
-  try {
-    await docClient.send(new TransactWriteCommand({
-      TransactItems: transactItems,
+        totalAmount,
+        orderId,
+        createdAt
+      })
     }));
-  } catch (err) {
-    if (err.name === 'TransactionCanceledException') {
-      // Check if a stock condition failed
-      const reasons = err.CancellationReasons || [];
-      const stockFail = reasons.some((r) => r.Code === 'ConditionalCheckFailed');
-      if (stockFail) {
-        return error('Insufficient stock for one or more items. Please update quantities.', 400);
-      }
-    }
-    throw err;
+
+    return success({
+      message: 'Order received and queued for processing.',
+      orderId,
+      status: 'queued'
+    }, 202);
+  } catch (sqsErr) {
+    console.error('SQS Send Error:', sqsErr);
+    return error('Checkout failed: Could not queue order.', 500);
   }
-
-  // ── 8. Publish email receipt via Amazon SNS (Phase 3) ──
-  try {
-    await publishReceipt(
-      orderId, createdAt, userName, userEmail,
-      cartItems, productData, subtotal, shippingFee, totalAmount
-    );
-  } catch (snsErr) {
-    // SNS failure should NOT fail the order — transaction already committed
-    console.warn('SNS publish failed (order still succeeded):', snsErr.message);
-  }
-
-  return success({
-    message: 'Order placed successfully via DynamoDB Transaction!',
-    orderId,
-  }, 201);
-}
-
-
-// ═══════════════════════════════════════════════════════
-// SNS EMAIL RECEIPT (Phase 3)
-// Publishes a formatted order confirmation to the
-// ScholarKit-OrderReceipts SNS topic. Subscribed email
-// addresses receive the receipt automatically.
-// ═══════════════════════════════════════════════════════
-
-async function publishReceipt(
-  orderId, createdAt, userName, userEmail,
-  cartItems, productData, subtotal, shippingFee, totalAmount
-) {
-  const topicArn = process.env.SNS_TOPIC_ARN;
-  if (!topicArn) {
-    console.log('SNS_TOPIC_ARN not set — skipping email receipt.');
-    return;
-  }
-
-  // Build item lines
-  const itemLines = cartItems.map((ci) => {
-    const product = productData[ci.productId];
-    const lineTotal = product.price * ci.quantity;
-    return `  ${ci.quantity}x ${product.name.padEnd(30)} ₹${lineTotal.toFixed(2)}`;
-  }).join('\n');
-
-  const message = [
-    '════════════════════════════════════════════',
-    '  ScholarKit — Order Confirmation',
-    '════════════════════════════════════════════',
-    '',
-    `  Order #${orderId}`,
-    `  Date:     ${new Date(createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
-    `  Customer: ${userName} (${userEmail})`,
-    '',
-    '── Items ──────────────────────────────────',
-    itemLines,
-    '',
-    '── Summary ────────────────────────────────',
-    `  Subtotal:  ₹${subtotal.toFixed(2)}`,
-    `  Shipping:  ₹${shippingFee.toFixed(2)}`,
-    `  Total:     ₹${totalAmount.toFixed(2)}`,
-    '',
-    '  Status: Paid ✓',
-    '',
-    '  Thank you for shopping with ScholarKit!',
-    '════════════════════════════════════════════',
-  ].join('\n');
-
-  await sns.send(new PublishCommand({
-    TopicArn: topicArn,
-    Subject:  `ScholarKit Order Confirmation #${orderId}`,
-    Message:  message,
-  }));
-
-  console.log(`📧 Receipt published to SNS for order #${orderId}`);
 }
 
 
@@ -322,8 +186,10 @@ async function getUserOrders(user) {
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
 
-  // 2. For each order, fetch its line items
-  const result = [];
+  // 1.5 Gather all product IDs from all order items to fetch missing images
+  const allProductIds = new Set();
+  const orderItemsMap = {};
+  
   for (const order of orders) {
     const itemsResult = await docClient.send(new QueryCommand({
       TableName: TABLE_NAME,
@@ -333,6 +199,43 @@ async function getUserOrders(user) {
         ':prefix': keys.orderItemPrefix(),
       },
     }));
+    orderItemsMap[order.orderId] = itemsResult.Items || [];
+    for (const item of (itemsResult.Items || [])) {
+      if (!item.productImageUrl && item.productId) {
+        allProductIds.add(item.productId);
+      }
+    }
+  }
+
+  const liveProductsMap = {};
+  if (allProductIds.size > 0) {
+    const { BatchGetCommand } = require('@aws-sdk/lib-dynamodb');
+    const keysToFetch = Array.from(allProductIds).map(id => ({
+      PK: keys.productPK(id),
+      SK: keys.productSK()
+    }));
+    
+    // BatchGet can only fetch 100 items at a time, but this will be small
+    const batchResult = await docClient.send(new BatchGetCommand({
+      RequestItems: {
+        [TABLE_NAME]: {
+          Keys: keysToFetch.slice(0, 100)
+        }
+      }
+    }));
+    
+    for (const p of (batchResult.Responses[TABLE_NAME] || [])) {
+      liveProductsMap[p.productId] = {
+        url:  p.imageUrl || null,
+        name: p.name || null
+      };
+    }
+  }
+
+  // 2. Format the response
+  const result = [];
+  for (const order of orders) {
+    const items = orderItemsMap[order.orderId];
 
     result.push({
       id:              order.orderId,
@@ -341,12 +244,18 @@ async function getUserOrders(user) {
       created_at:      order.createdAt,
       shipping_fee:    order.shippingFee,
       tracking_number: order.trackingNumber,
-      items: (itemsResult.Items || []).map((i) => ({
-        name:      i.productName,
-        image_url: i.productImageUrl || PRODUCT_PLACEHOLDER,
-        quantity:  i.quantity,
-        price:     i.priceAtPurchase,
-      })),
+      items: items.map((i) => {
+        // Only use live product image if the name matches (prevents ID reuse issues)
+        const liveImage = liveProductsMap[i.productId];
+        const nameMatches = liveImage && liveImage.name === i.productName;
+        
+        return {
+          name:      i.productName,
+          image_url: i.productImageUrl || (nameMatches ? liveImage.url : null) || PRODUCT_PLACEHOLDER,
+          quantity:  i.quantity,
+          price:     i.priceAtPurchase,
+        };
+      }),
     });
   }
 
@@ -374,11 +283,52 @@ async function getOrderDetails(id) {
     return error('Order not found', 404);
   }
 
-  return success((result.Items || []).map((i) => ({
-    id:                i.productId,
-    quantity:          i.quantity,
-    price_at_purchase: i.priceAtPurchase,
-    name:              i.productName,
-    category:          i.productCategory,
-  })));
+  const items = result.Items || [];
+  
+  // 1. Gather product IDs for items with missing images
+  const allProductIds = new Set();
+  for (const item of items) {
+    if (!item.productImageUrl && item.productId) {
+      allProductIds.add(item.productId);
+    }
+  }
+
+  // 2. Fetch live products for missing images
+  const liveProductsMap = {};
+  if (allProductIds.size > 0) {
+    const { BatchGetCommand } = require('@aws-sdk/lib-dynamodb');
+    const keysToFetch = Array.from(allProductIds).map(id => ({
+      PK: keys.productPK(id),
+      SK: keys.productSK()
+    }));
+    
+    const batchResult = await docClient.send(new BatchGetCommand({
+      RequestItems: {
+        [TABLE_NAME]: {
+          Keys: keysToFetch.slice(0, 100)
+        }
+      }
+    }));
+    
+    for (const p of (batchResult.Responses[TABLE_NAME] || [])) {
+      liveProductsMap[p.productId] = {
+        url:  p.imageUrl || null,
+        name: p.name || null
+      };
+    }
+  }
+
+  return success(items.map((i) => {
+    const liveImage = liveProductsMap[i.productId];
+    const nameMatches = liveImage && liveImage.name === i.productName;
+
+    return {
+      id:                i.productId,
+      quantity:          i.quantity,
+      price_at_purchase: i.priceAtPurchase,
+      name:              i.productName,
+      category:          i.productCategory,
+      image_url:         i.productImageUrl || (nameMatches ? liveImage.url : null) || PRODUCT_PLACEHOLDER,
+    };
+  }));
 }

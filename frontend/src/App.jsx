@@ -27,14 +27,32 @@ function App() {
         <CartProvider>
           <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
             <Toaster
-              position="top-right"
+              position="bottom-right"
               toastOptions={{
-                duration: 3500,
+                duration: 4000,
                 style: {
-                  border: '1px solid #cbd5e1',
-                  background: '#0f172a',
-                  color: '#f8fafc'
-                }
+                  border: '1px solid rgba(226, 232, 240, 0.8)',
+                  background: 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(8px)',
+                  color: '#0f172a',
+                  boxShadow: '0 4px 24px -4px rgba(0, 0, 0, 0.08)',
+                  borderRadius: '100px',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  padding: '12px 24px',
+                },
+                success: {
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: 'white',
+                  },
+                },
+                error: {
+                  iconTheme: {
+                    primary: '#f43f5e',
+                    secondary: 'white',
+                  },
+                },
               }}
             />
             <Navbar />

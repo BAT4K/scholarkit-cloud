@@ -4,7 +4,8 @@ import toast from 'react-hot-toast';
 
 const EMPTY_FORM = {
   name: '', price: '', stock: '', category: '', school_id: '',
-  discount_percent: '0', size: '', image_url: '', seller_id: ''
+  discount_percent: '0', size: '', image_url: '', seller_id: '',
+  grade_group: 'all', gender: 'unisex'
 };
 
 export default function ProductFormModal({ isOpen, onClose, onSaved, product, isAdmin }) {
@@ -30,12 +31,10 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
   useEffect(() => {
     if (!isOpen) return;
 
-    // Load schools for admin dropdown
-    if (isAdmin) {
-      axios.get('/api/products/schools', getAuthHeaders())
-        .then(res => setSchools(res.data))
-        .catch(() => {});
-    }
+    // Load schools for selection
+    axios.get('/api/products/schools', getAuthHeaders())
+      .then(res => setSchools(res.data))
+      .catch(() => {});
 
     // Populate form for editing
     if (product) {
@@ -48,7 +47,9 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
         discount_percent: product.discount_percent || '0',
         size: product.size || '',
         image_url: product.image_url || '',
-        seller_id: product.seller_id || ''
+        seller_id: product.seller_id || '',
+        grade_group: product.grade_group || 'all',
+        gender: product.gender || 'unisex'
       });
       setImagePreview(product.image_url || '');
     } else {
@@ -92,18 +93,22 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('image', imageFile);
+      // 1. Get presigned URL
+      const presignRes = await axios.post('/api/admin/generate-upload-url', {
+        filename: imageFile.name,
+        fileType: imageFile.type
+      }, getAuthHeaders());
 
-      const res = await axios.post('/api/upload', formData, {
-        ...getAuthHeaders(),
+      const { uploadUrl, publicUrl } = presignRes.data;
+
+      // 2. Upload file directly to S3
+      await axios.put(uploadUrl, imageFile, {
         headers: {
-          ...getAuthHeaders().headers,
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': imageFile.type
         }
       });
 
-      return res.data.image_url;
+      return publicUrl;
     } catch (err) {
       toast.error(err.response?.data?.message || 'Image upload failed.');
       throw err;
@@ -136,10 +141,12 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
         category: form.category || null,
         discount_percent: parseInt(form.discount_percent) || 0,
         size: form.size || null,
-        image_url: finalImageUrl || null
+        image_url: finalImageUrl || null,
+        grade_group: form.grade_group || 'all',
+        gender: form.gender || 'unisex'
       };
 
-      if (isAdmin) {
+      if (isAdmin || !product) {
         payload.school_id = form.school_id || null;
       }
 
@@ -165,14 +172,14 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 transition-all duration-300">
+      <div className="w-full max-w-lg bg-white rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] border border-slate-100 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-lg font-bold text-gray-900">
+        <div className="flex items-center justify-between border-b border-slate-100/80 px-7 py-6 bg-white/95 backdrop-blur-sm sticky top-0 z-20">
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">
             {isEditing ? 'Edit Product' : 'Add New Product'}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+          <button onClick={onClose} className="text-slate-400 hover:text-gray-600 transition">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -184,31 +191,31 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
 
           {/* ═══ IMAGE SECTION ═══ */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Product Image</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Product Image</label>
 
             {/* Mode Toggle */}
-            <div className="flex rounded-xl bg-slate-100 p-1 mb-3">
+            <div className="flex rounded-xl bg-slate-100/80 p-1 mb-4 border border-slate-200/50">
               <button
                 type="button"
                 onClick={() => setImageMode('upload')}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  imageMode === 'upload' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${
+                  imageMode === 'upload' ? 'bg-white text-primary-dark shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                 }`}
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
                 Upload New
               </button>
               <button
                 type="button"
                 onClick={() => setImageMode('library')}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                  imageMode === 'library' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${
+                  imageMode === 'library' ? 'bg-white text-primary-dark shadow-sm ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
                 }`}
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 Choose from Library
               </button>
@@ -218,15 +225,15 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
             {imageMode === 'upload' && (
               <div className="flex items-center gap-4">
                 {imagePreview && (
-                  <div className="h-20 w-20 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 flex-shrink-0">
+                  <div className="h-20 w-20 rounded-lg border border-slate-200 overflow-hidden bg-slate-50 flex-shrink-0">
                     <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
                   </div>
                 )}
-                <label className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-4 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <label className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/20 bg-primary/5 px-4 py-5 cursor-pointer hover:border-primary hover:bg-primary/10 transition group">
+                  <svg className="w-5 h-5 text-primary-light group-hover:text-primary transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="text-sm text-gray-500 font-medium">{imageFile ? imageFile.name : 'Choose image...'}</span>
+                  <span className="text-sm text-primary-dark font-bold">{imageFile ? imageFile.name : 'Choose image...'}</span>
                   <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                 </label>
               </div>
@@ -237,34 +244,34 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
               <div>
                 {galleryLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     <span className="ml-2 text-sm text-slate-500 font-medium">Loading library...</span>
                   </div>
                 ) : gallery.length === 0 ? (
-                  <div className="py-8 text-center rounded-xl border-2 border-dashed border-gray-200">
+                  <div className="py-8 text-center rounded-lg border-2 border-dashed border-slate-200">
                     <svg className="mx-auto h-8 w-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <p className="text-sm text-gray-400 font-medium">No images in your library yet.</p>
+                    <p className="text-sm text-slate-400 font-medium">No images in your library yet.</p>
                     <p className="text-xs text-gray-300 mt-1">Upload your first image to get started.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto rounded-xl border border-gray-200 p-2 bg-slate-50">
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-2 bg-slate-50">
                     {gallery.map((url, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => selectFromGallery(url)}
-                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition hover:shadow-md ${
+                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition hover:shadow-sm ${
                           form.image_url === url
-                            ? 'border-indigo-500 ring-2 ring-indigo-200 shadow-md'
+                            ? 'border-primary ring-2 ring-indigo-200 shadow-sm'
                             : 'border-transparent hover:border-indigo-300'
                         }`}
                       >
                         <img src={url} alt={`Library ${idx + 1}`} className="h-full w-full object-cover" />
                         {form.image_url === url && (
-                          <div className="absolute inset-0 bg-indigo-600/20 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           </div>
@@ -276,15 +283,15 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
 
                 {/* Preview of selected library image */}
                 {imagePreview && form.image_url && !imageFile && (
-                  <div className="mt-3 flex items-center gap-3 rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2">
-                    <div className="h-10 w-10 rounded-lg overflow-hidden border border-indigo-200 flex-shrink-0">
+                  <div className="mt-3 flex items-center gap-3 rounded-lg bg-slate-50 border border-indigo-100 px-3 py-2">
+                    <div className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
                       <img src={imagePreview} alt="Selected" className="h-full w-full object-cover" />
                     </div>
-                    <span className="text-xs text-indigo-700 font-semibold truncate flex-1">Image selected from library</span>
+                    <span className="text-xs text-primary-dark font-semibold truncate flex-1">Image selected from library</span>
                     <button
                       type="button"
                       onClick={() => { setForm(prev => ({ ...prev, image_url: '' })); setImagePreview(''); }}
-                      className="text-indigo-400 hover:text-indigo-600"
+                      className="text-indigo-400 hover:text-primary"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -296,13 +303,13 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
 
           {/* Name */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Product Name *</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Product Name *</label>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Cotton Polo Shirt"
-              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               required
             />
           </div>
@@ -310,24 +317,24 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
           {/* Price + Stock row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Price (₹) *</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Price (₹) *</label>
               <input
                 type="number" step="0.01" min="0"
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 placeholder="499.00"
-                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Stock</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Stock</label>
               <input
                 type="number" min="0"
                 value={form.stock}
                 onChange={(e) => setForm({ ...form, stock: e.target.value })}
                 placeholder="100"
-                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               />
             </div>
           </div>
@@ -335,21 +342,21 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
           {/* Category + Size row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Category</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Category</label>
               <input
                 type="text"
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 placeholder="Shirt, Trouser, Belt..."
-                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Size</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Size</label>
               <select
                 value={form.size}
                 onChange={(e) => setForm({ ...form, size: e.target.value })}
-                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               >
                 <option value="">Select size</option>
                 {['XS','S','M','L','XL','XXL','Free Size'].map(s => <option key={s} value={s}>{s}</option>)}
@@ -357,45 +364,74 @@ export default function ProductFormModal({ isOpen, onClose, onSaved, product, is
             </div>
           </div>
 
+          {/* Grade + Gender row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Grade Group</label>
+              <select
+                value={form.grade_group}
+                onChange={(e) => setForm({ ...form, grade_group: e.target.value })}
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="all">All Grades</option>
+                <option value="foundation">Foundation</option>
+                <option value="primary">Primary</option>
+                <option value="secondary">Secondary</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Gender</label>
+              <select
+                value={form.gender}
+                onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="unisex">Unisex</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+          </div>
+
           {/* Discount */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Discount %</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Discount %</label>
             <input
               type="number" min="0" max="100"
               value={form.discount_percent}
               onChange={(e) => setForm({ ...form, discount_percent: e.target.value })}
-              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
             />
           </div>
 
-          {/* Admin-only: School dropdown */}
-          {isAdmin && (
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Assign to School</label>
-              <select
-                value={form.school_id}
-                onChange={(e) => setForm({ ...form, school_id: e.target.value })}
-                className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-              >
-                <option value="">No school assigned</option>
-                {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-          )}
+          {/* School selection */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Target School</label>
+            <select
+              value={form.school_id}
+              onChange={(e) => setForm({ ...form, school_id: e.target.value })}
+              className="w-full rounded-lg border border-slate-200/60 bg-white/50 px-4 py-2.5 text-sm font-medium outline-none transition hover:bg-white focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+            >
+              <option value="">No School (Private Inventory)</option>
+              {schools.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Submit */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-4 pb-2">
             <button
               type="submit"
               disabled={saving || uploading}
-              className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              className="flex-1 rounded-xl bg-primary py-3 text-sm font-black tracking-wide text-white shadow-lg shadow-primary/20 transition hover:bg-primary-dark hover:-translate-y-0.5 disabled:bg-slate-300 disabled:cursor-not-allowed disabled:transform-none"
             >
               {uploading ? 'Uploading image...' : saving ? 'Saving...' : isEditing ? 'Update Product' : 'Create Product'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              className="rounded-xl border border-slate-200/60 bg-white/50 px-6 py-3 text-sm font-bold text-slate-600 transition hover:bg-white hover:border-slate-300"
             >
               Cancel
             </button>

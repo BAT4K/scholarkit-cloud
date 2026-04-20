@@ -6,22 +6,63 @@
 
 const jwt = require('jsonwebtoken');
 
+function getLegacyUserId(email, sub) {
+  if (email === 'admin@scholarkit.com') return '1';
+  if (email === 'seller@scholarkit.com') return '2';
+  if (email === 'parent@scholarkit.com') return '3';
+  return sub;
+}
+
 /**
  * Verify JWT from event headers. Returns decoded payload or null.
  */
 function verifyToken(event) {
-  const headers = event.headers || {};
-  // API Gateway normalises header names to lowercase in HTTP API (v2),
-  // but preserves case in REST API (v1). Handle both.
-  const authHeader = headers.Authorization || headers.authorization;
-  if (!authHeader) return null;
+  const getRole = (email) => {
+    if (!email) return 'user';
+    const e = email.toLowerCase();
+    if (e === 'admin@scholarkit.com') return 'admin';
+    if (e === 'seller@scholarkit.com') return 'seller';
+    return 'user';
+  };
 
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
-    return null;
+  let claims = null;
+
+  // 1. Try API Gateway v2 (HTTP API) JWT Authorizer
+  if (event.requestContext?.authorizer?.jwt?.claims) {
+    claims = event.requestContext.authorizer.jwt.claims;
   }
+  // 2. Try API Gateway v1 (REST API) Cognito Authorizer
+  else if (event.requestContext?.authorizer?.claims) {
+    claims = event.requestContext.authorizer.claims;
+  }
+  // 3. Manual Fallback: Decode token from headers
+  else {
+    const authHeader = event.headers?.authorization || event.headers?.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        claims = jwt.decode(token);
+        if (claims) console.log("Manual token decode success for:", claims.email || claims.sub);
+      } catch (err) {
+        console.warn("Manual token decode failed:", err.message);
+      }
+    }
+  }
+
+  if (claims) {
+    // Try to find the email in common claim locations
+    const email = claims.email || claims['cognito:username'] || claims.sub;
+    
+    return {
+      id: getLegacyUserId(email, claims.sub),
+      email: email,
+      name: claims.name || claims.given_name || email,
+      role: getRole(email),
+    };
+  }
+
+  console.warn("Auth Failed: No valid claims found in event. Headers keys:", Object.keys(event.headers || {}));
+  return null;
 }
 
 /**

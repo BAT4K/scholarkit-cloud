@@ -27,7 +27,7 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$DEPLOY_DIR"
 
 # Functions to package
-FUNCTIONS=("auth" "products" "cart" "orders" "admin" "reviews")
+FUNCTIONS=("products" "cart" "orders" "admin" "reviews" "order-worker" "moderate-image" "create-review")
 
 for func in "${FUNCTIONS[@]}"; do
   echo "📦 Packaging: sk-$func"
@@ -38,7 +38,12 @@ for func in "${FUNCTIONS[@]}"; do
   # ── 1. Copy handler, rewriting import paths for deployment ──
   #    Development: require('../shared/...')
   #    Deployed:    require('./shared/...')
-  sed "s|'../shared/|'./shared/|g" "$SCRIPT_DIR/$func/index.js" > "$FUNC_BUILD/index.js"
+  for js_file in "$SCRIPT_DIR/$func"/*.js; do
+    if [ -f "$js_file" ]; then
+      filename=$(basename "$js_file")
+      sed "s|'../shared/|'./shared/|g" "$js_file" > "$FUNC_BUILD/$filename"
+    fi
+  done
 
   # ── 2. Copy shared utilities ──
   cp "$SCRIPT_DIR/shared/dynamo.js"   "$FUNC_BUILD/shared/"
@@ -54,27 +59,7 @@ for func in "${FUNCTIONS[@]}"; do
     rm -rf "$FUNC_BUILD/node_modules/@aws-sdk" \
            "$FUNC_BUILD/node_modules/@smithy" 2>/dev/null || true
 
-    # For reviews function, bundle @aws-sdk/client-comprehend (may not be in runtime)
-    if [ "$func" = "reviews" ] && [ -d "$AWS_DIR/node_modules/@aws-sdk/client-comprehend" ]; then
-      mkdir -p "$FUNC_BUILD/node_modules/@aws-sdk"
-      cp -r "$AWS_DIR/node_modules/@aws-sdk/client-comprehend" "$FUNC_BUILD/node_modules/@aws-sdk/"
-      # Copy required @smithy transitive dependencies
-      if [ -d "$AWS_DIR/node_modules/@smithy" ]; then
-        cp -r "$AWS_DIR/node_modules/@smithy" "$FUNC_BUILD/node_modules/"
-      fi
-      # Copy required @aws-sdk internal dependencies
-      for dep in middleware-host-header middleware-user-agent middleware-retry middleware-serde \
-                 middleware-signing middleware-content-length middleware-endpoint config-resolver \
-                 node-config-provider hash-node url-parser middleware-stack util-user-agent-node \
-                 region-config-resolver protocol-http types util-endpoints credential-provider-node \
-                 node-http-handler smithy-client util-stream core client-sso-oidc client-sts \
-                 credential-provider-ini credential-provider-process credential-provider-sso \
-                 credential-provider-web-identity credential-provider-env token-providers; do
-        if [ -d "$AWS_DIR/node_modules/@aws-sdk/$dep" ]; then
-          cp -r "$AWS_DIR/node_modules/@aws-sdk/$dep" "$FUNC_BUILD/node_modules/@aws-sdk/"
-        fi
-      done
-    fi
+    # Comprehend SDK bundling removed (we use Hugging Face now)
   fi
 
   # ── 4. Create deployment ZIP ──

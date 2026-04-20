@@ -39,7 +39,7 @@ export default function SelectSchool() {
     <div className="min-h-screen bg-[linear-gradient(180deg,_#eef2ff,_#f8fafc_24%,_#f8fafc)] px-4 py-12">
       <div className="mx-auto max-w-6xl">
         <div className="mb-10 max-w-2xl">
-          <p className="text-sm font-black uppercase tracking-[0.3em] text-indigo-600">Choose your campus</p>
+          <p className="text-sm font-black uppercase tracking-[0.3em] text-primary">Choose your campus</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-900">Select Your School</h1>
           <p className="mt-3 text-base text-slate-500">
             We’ll tailor the catalog, grade groups, and checkout flow to the school you pick here.
@@ -54,7 +54,7 @@ export default function SelectSchool() {
               <button
                 type="button"
                 onClick={fetchSchools}
-                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                className="btn-primary"
               >
                 Try again
               </button>
@@ -72,24 +72,24 @@ export default function SelectSchool() {
                 key={school.id}
                 type="button"
                 onClick={() => handleSelectSchool(school.id)}
-                className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-xl"
+                className="glass-card text-left group overflow-hidden hover:border-indigo-300 cursor-pointer"
               >
-                <div className="relative h-48 overflow-hidden bg-slate-50 p-6 flex items-center justify-center">
+                <div className="relative h-48 overflow-hidden bg-slate-50/50 p-6 flex items-center justify-center border-b border-slate-100/50">
                   <img
                     src={resolveImageUrl(school.image_url, school.name, 'school')}
                     alt={school.name}
                     onError={(event) => attachFallback(event, school.name, 'school')}
-                    className="h-full w-full object-contain transition duration-500 group-hover:scale-110"
+                    className="h-full w-full object-contain mix-blend-multiply contrast-[1.05] brightness-[1.05] transition duration-500 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 via-transparent" />
                 </div>
                 <div className="flex flex-1 flex-col p-6">
-                  <p className="text-xs font-black uppercase tracking-[0.25em] text-indigo-600">Official catalog</p>
+                  <p className="text-xs font-black uppercase tracking-[0.25em] text-primary">Official catalog</p>
                   <h2 className="mt-3 text-2xl font-black text-slate-900">{school.name}</h2>
                   <p className="mt-2 text-sm text-slate-500">{school.location || 'Location available at checkout'}</p>
-                  <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-indigo-700">
+                  <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary-dark transition-all duration-300 group-hover:text-primary">
                     Shop this school
-                    <span aria-hidden="true">→</span>
+                    <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1.5">→</span>
                   </div>
                 </div>
               </button>

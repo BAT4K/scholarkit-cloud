@@ -16,19 +16,27 @@ const CORS_HEADERS = {
 function success(body, statusCode = 200) {
   return {
     statusCode,
-    headers: CORS_HEADERS,
+    headers: {
+      ...CORS_HEADERS,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
     body: JSON.stringify(body),
   };
-}
+};
 
 /** Error response */
 function error(message, statusCode = 500) {
   return {
     statusCode,
-    headers: CORS_HEADERS,
+    headers: {
+      ...CORS_HEADERS,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    },
     body: JSON.stringify({ message }),
   };
-}
+};
 
 /** CORS preflight response */
 function options() {

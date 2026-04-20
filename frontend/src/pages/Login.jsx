@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 
 export default function Login({ mode = 'login' }) {
   const [isLogin, setIsLogin] = useState(mode !== 'register');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -34,26 +35,39 @@ export default function Login({ mode = 'login' }) {
         await login(email, password);
         toast.success('Welcome back to ScholarKit.');
       } else {
-        await register(name, email, password);
+        await register(`${firstName.trim()} ${lastName.trim()}`, email, password);
         toast.success('Your account is ready.');
       }
       const redirectPath = location.state?.from?.pathname || (localStorage.getItem('selectedSchool') ? '/shop' : '/select-school');
       navigate(redirectPath, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Authentication failed');
+      // Amplify throws {name, message} — axios throws {response.data.message}
+      const amplifyMsg = err?.message;
+      const FRIENDLY = {
+        NotAuthorizedException:      'Incorrect email or password.',
+        UserNotFoundException:        'No account found with that email.',
+        UserNotConfirmedException:    'Account not verified. Check your email.',
+        PasswordResetRequiredException: 'Please reset your password.',
+        TooManyRequestsException:    'Too many attempts. Please wait a moment.',
+        InvalidParameterException:   'Invalid input. Please check your details.',
+        UsernameExistsException:     'An account with this email already exists.',
+      };
+      setError(FRIENDLY[err?.name] || amplifyMsg || err?.response?.data?.message || 'Authentication failed.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#dbeafe,_#f8fafc_40%,_#eef2ff)] px-4 py-12">
-      <div className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-xl shadow-slate-200/70 backdrop-blur">
-        <p className="mb-3 text-center text-xs font-black uppercase tracking-[0.3em] text-indigo-600">ScholarKit</p>
-        <h2 className="mb-2 text-center text-3xl font-black text-slate-900">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-50 via-white to-slate-50 px-4 py-12">
+      <div className="glass-card w-full max-w-md p-10 relative overflow-hidden">
+        {/* Subtle decorative glow */}
+        <div className="absolute top-[-50px] left-[-50px] w-32 h-32 bg-primary/10 rounded-full blur-3xl"></div>
+        <p className="mb-3 text-center text-xs font-black uppercase tracking-widest text-primary relative z-10">ScholarKit</p>
+        <h2 className="mb-2 text-center text-3xl font-black text-slate-900 tracking-tight relative z-10">
           {isLogin ? 'Welcome Back' : 'Create Account'}
         </h2>
-        <p className="mb-6 text-center text-sm text-slate-500">
+        <p className="mb-8 text-center text-sm font-medium text-slate-500 relative z-10">
           {isLogin ? 'Sign in to manage your cart, orders, and school selections.' : 'Create an account to start shopping and tracking orders.'}
         </p>
 
@@ -63,37 +77,51 @@ export default function Login({ mode = 'login' }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
           {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Name</label>
-              <input
-                type="text"
-                required
-                className="mt-1 block w-full rounded-xl border border-slate-300 px-4 py-3 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">First Name</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full"
+                  placeholder="Priya"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Last Name</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full"
+                  placeholder="Sharma"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">Email Address</label>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Email Address</label>
             <input
               type="email"
               required
-              className="mt-1 block w-full rounded-xl border border-slate-300 px-4 py-3 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="w-full"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700">Password</label>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">Password</label>
             <input
               type="password"
               required
-              className="mt-1 block w-full rounded-xl border border-slate-300 px-4 py-3 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+              className="w-full"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -102,7 +130,7 @@ export default function Login({ mode = 'login' }) {
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            className="btn-primary w-full"
           >
             {submitting ? 'Please wait...' : isLogin ? 'Login' : 'Sign Up'}
           </button>
@@ -113,7 +141,7 @@ export default function Login({ mode = 'login' }) {
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <Link
               to={isLogin ? '/register' : '/login'}
-              className="font-semibold text-indigo-600 hover:text-indigo-500"
+              className="font-semibold text-primary hover:text-indigo-500"
             >
               {isLogin ? 'Sign up' : 'Log in'}
             </Link>

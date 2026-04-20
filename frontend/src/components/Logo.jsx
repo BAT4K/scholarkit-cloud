@@ -24,7 +24,7 @@ const Logo = ({ className = "" }) => {
         </span>
         
         {/* TAGLINE: Replaces "Est 2025" with relevant context */}
-        <span className="text-[10px] md:text-[11px] text-gray-400 font-bold tracking-[0.15em] uppercase leading-tight">
+        <span className="text-[10px] md:text-[11px] text-slate-400 font-bold tracking-[0.15em] uppercase leading-tight">
           OFFICIAL STORE
         </span>
       </div>

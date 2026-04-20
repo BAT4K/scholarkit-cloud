@@ -6,7 +6,7 @@ export default function LoadingSpinner({ label = 'Loading...', fullPage = false,
       } ${className}`}
     >
       <svg
-        className="h-8 w-8 animate-spin text-indigo-600"
+        className="h-8 w-8 animate-spin text-primary"
         viewBox="0 0 24 24"
         fill="none"
         aria-hidden="true"

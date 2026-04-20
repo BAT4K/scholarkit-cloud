@@ -53,27 +53,35 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-          <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-bold text-gray-800">Alerts</h3>
+        <div className="absolute right-0 mt-4 w-80 glass-card shadow-2xl z-50 overflow-hidden transform origin-top-right transition-all">
+          <div className="px-5 py-4 bg-white/50 border-b border-white/50 backdrop-blur-md flex justify-between items-center">
+            <h3 className="text-[10px] uppercase font-black tracking-widest text-slate-400">Alerts</h3>
           </div>
           
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto bg-white/30 backdrop-blur-sm">
             {loading ? (
               <LoadingSpinner label="Loading alerts..." className="py-6" />
             ) : notifications.length === 0 ? (
-              <div className="p-6 text-center text-sm text-gray-500 font-medium">You're all caught up!</div>
+              <div className="p-8 flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
+                  <svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="text-sm text-slate-600 font-bold tracking-tight">You're all caught up!</div>
+                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-1">No new alerts</div>
+              </div>
             ) : (
               notifications.map(notif => (
-                <div key={notif.id} className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${!notif.is_read ? 'bg-blue-50/30' : 'bg-white'}`}>
-                  <div className="flex gap-3">
-                    <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 shadow-sm ${!notif.is_read ? 'bg-blue-500' : 'bg-gray-200'}`} />
-                    <div>
-                      <p className={`text-sm tracking-tight ${!notif.is_read ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                <div key={notif.id} className="p-5 border-b border-white/40 hover:bg-white/60 transition duration-300 cursor-pointer">
+                  <div className="flex gap-4">
+                    <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 transition ${!notif.is_read ? 'bg-primary shadow-[0_0_8px_rgba(37,99,235,0.6)]' : 'bg-slate-300'}`} />
+                    <div className="flex-1">
+                      <p className={`text-sm tracking-tight leading-snug ${!notif.is_read ? 'font-black text-slate-900' : 'font-medium text-slate-500'}`}>
                         {notif.message}
                       </p>
-                      <p className="text-[11px] font-medium text-gray-400 mt-1">
-                        {new Date(notif.created_at).toLocaleString()}
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-2">
+                        {new Date(notif.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                       </p>
                     </div>
                   </div>

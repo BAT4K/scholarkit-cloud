@@ -15,7 +15,7 @@ export default {
         surface: '#f3f4f6', // Light Grey for backgrounds
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
         serif: ['Merriweather', 'serif'],
       },
     },

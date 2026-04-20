@@ -59,6 +59,8 @@ exports.handler = async (event) => {
 };
 
 async function route(method, path, event) {
+  console.log(`INCOMING REQUEST: ${method} ${path}`, event.queryStringParameters);
+
   // Normalise: support /api/products/... or bare /products/...
   const segments = path.split('/').filter(Boolean);
   const anchorIdx = segments.findIndex((s) =>
@@ -98,6 +100,11 @@ async function routeProducts(method, sub, event) {
     return error('Method not allowed', 405);
   }
 
+  // GET /products/seller (Legacy support for dashboard)
+  if (sub[0] === 'seller' && method === 'GET') {
+    return getSellerProducts(event, requireAuth(event));
+  }
+
   // GET /products/images
   if (sub[0] === 'images' && method === 'GET') {
     return getImageGallery(requireAuth(event));
@@ -115,12 +122,42 @@ async function routeProducts(method, sub, event) {
   if (sub.length === 2) {
     if (sub[1] === 'stock'         && method === 'PATCH') return updateStock(event, requireAuth(event), id);
     if (sub[1] === 'price-history' && method === 'GET')   return getPriceHistory(id);
+    if (sub[1] === 'reviews'       && method === 'POST')  return invokeCreateReview(event, id);
   }
 
   return error('Route not found', 404);
 }
 
+async function invokeCreateReview(event, id) {
+  const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
+  const lambda = new LambdaClient({});
+  
+  // Inject the extracted product ID into the event pathParameters
+  // because API Gateway's greedy proxy won't populate event.pathParameters.id
+  const enrichedEvent = {
+    ...event,
+    pathParameters: {
+      ...event.pathParameters,
+      id: id
+    }
+  };
 
+  try {
+    const response = await lambda.send(new InvokeCommand({
+      FunctionName: 'sk-create-review',
+      Payload: Buffer.from(JSON.stringify(enrichedEvent))
+    }));
+    const result = JSON.parse(Buffer.from(response.Payload).toString());
+    return {
+      statusCode: result.statusCode || 200,
+      headers: result.headers || { 'Content-Type': 'application/json' },
+      body: result.body || '{}'
+    };
+  } catch (err) {
+    console.error("Lambda invoke error:", err);
+    return error('Failed to invoke review processor', 500);
+  }
+}
 // ═══════════════════════════════════════════════════════
 // 1. LIST ALL SCHOOLS
 //    Replaces: productController.getSchools
@@ -259,8 +296,8 @@ async function createProduct(event, user) {
   if (!name || price == null) return error('Name and price are required.', 400);
 
   const productId = Date.now();
-  const sellerId  = user.role === 'admin' ? (body.seller_id || user.id) : user.id;
-  const schoolId  = body.school_id || null;
+  const sellerId  = user.role === 'admin' ? Number(body.seller_id || user.id) : Number(user.id);
+  const schoolId  = body.school_id ? Number(body.school_id) : null;
 
   const item = {
     PK:       keys.productPK(productId),
@@ -272,8 +309,8 @@ async function createProduct(event, user) {
     name,
     price:           Number(price),
     stock:           Number(body.stock || 0),
-    category:        body.category || null,
-    gradeGroup:      body.grade_group || null,
+    category:        body.category || 'Uniform',
+    gradeGroup:      body.grade_group || 'all',
     discountPercent: Number(body.discount_percent || 0),
     imageUrl:        body.image_url || null,
     size:            body.size || null,
@@ -327,11 +364,14 @@ async function updateProduct(event, user, id) {
   if (body.discount_percent !== undefined) updates.discountPercent = Number(body.discount_percent);
   if (body.size             !== undefined) updates.size            = body.size;
   if (body.image_url        !== undefined) updates.imageUrl        = body.image_url;
+  if (body.grade_group      !== undefined) updates.gradeGroup      = body.grade_group;
+  if (body.gender           !== undefined) updates.gender          = body.gender;
 
   // Only admins can reassign school
   if (user.role === 'admin' && body.school_id !== undefined) {
-    updates.schoolId = body.school_id;
-    updates.GSI1PK   = keys.productInSchoolGSI(body.school_id);
+    const sid = Number(body.school_id);
+    updates.schoolId = sid;
+    updates.GSI1PK   = keys.productInSchoolGSI(sid);
   }
 
   if (Object.keys(updates).length === 0) return error('No fields to update.', 400);
@@ -524,7 +564,7 @@ async function getCatalog(event) {
   if (group_id) {
     const groupMap = { '1': 'foundation', '2': 'primary', '3': 'secondary' };
     const groupName = groupMap[group_id] || group_id;
-    products = products.filter((p) => p.gradeGroup === groupName || p.gradeGroup === 'all');
+    products = products.filter((p) => p.gradeGroup === groupName || p.gradeGroup === 'all' || !p.gradeGroup);
   }
 
   // Gender heuristic (matches original Express shopController logic)
@@ -587,19 +627,29 @@ async function getRecommendations(user) {
     }
   }
 
-  // 3. Look up purchased products to find their schools
-  const purchasedSchools = new Set();
+  // 3. Look up purchased products to analyze preferences
+  const purchasedProducts = [];
+  const schoolIds = new Set();
   for (const pid of purchasedIds) {
     const prod = await docClient.send(new GetCommand({
       TableName: TABLE_NAME,
       Key: { PK: keys.productPK(pid), SK: keys.productSK() },
     }));
-    if (prod.Item) purchasedSchools.add(prod.Item.schoolId);
+    if (prod.Item) {
+      purchasedProducts.push(prod.Item);
+      if (prod.Item.schoolId) schoolIds.add(prod.Item.schoolId);
+    }
   }
 
-  // 4. Get all products from those schools, excluding already purchased
-  const recommendations = [];
-  for (const schoolId of purchasedSchools) {
+  // 4. Analyze preferences
+  const purchasedNames = purchasedProducts.map(p => (p.name || '').toLowerCase());
+  const hasBoughtFemale = purchasedNames.some(n => n.includes('skirt') || n.includes('female'));
+  const hasBoughtMale   = purchasedNames.some(n => n.includes('trouser') || n.includes('male') || n.includes('short'));
+  const boughtCategories = new Set(purchasedProducts.map(p => (p.category || 'Uniform')));
+
+  // 5. Gather & Score Recommendations
+  const candidates = [];
+  for (const schoolId of schoolIds) {
     const schoolProducts = await docClient.send(new QueryCommand({
       TableName: TABLE_NAME,
       IndexName: GSI1_NAME,
@@ -611,22 +661,43 @@ async function getRecommendations(user) {
       if (p.entityType !== ENTITY_TYPES.PRODUCT) continue;
       if (purchasedIds.has(String(p.productId))) continue;
       if (p.stock <= 0) continue;
-      recommendations.push(p);
+
+      let score = 100;
+      const name = (p.name || '').toLowerCase();
+      
+      // Gender Boosting
+      if (hasBoughtFemale && (name.includes('skirt') || name.includes('female'))) score += 50;
+      if (hasBoughtMale && (name.includes('trouser') || name.includes('male') || name.includes('short'))) score += 50;
+      
+      // Gender Conflict Penalty
+      if (hasBoughtMale && !hasBoughtFemale && name.includes('skirt')) score -= 80;
+      if (hasBoughtFemale && !hasBoughtMale && (name.includes('short') || name.includes('trouser'))) score -= 30;
+
+      // Complementary Category Boost (suggest what they haven't bought yet)
+      if (!boughtCategories.has(p.category)) score += 30;
+
+      candidates.push({ ...p, _score: score });
     }
   }
 
-  // 5. Get school names and format
-  const schoolIds = [...new Set(recommendations.map((r) => r.schoolId))];
-  const schoolNames = await lookupSchoolNames(schoolIds);
+  // 6. Final Sort & School Name Lookup
+  const recommendations = candidates
+    .filter(c => c._score > 50)
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 8);
+
+  const finalSchoolIds = [...new Set(recommendations.map((r) => r.schoolId))];
+  const schoolNames = await lookupSchoolNames(finalSchoolIds);
 
   return success(
-    recommendations.slice(0, 8).map((r) => ({
+    recommendations.map((r) => ({
       id:               r.productId,
       name:             r.name,
       price:            r.price,
       category:         r.category,
       stock:            r.stock,
       discount_percent: r.discountPercent,
+      image_url:        r.imageUrl || null,
       school_name:      schoolNames[r.schoolId] || null,
     }))
   );
@@ -674,7 +745,7 @@ async function lookupSchoolNames(schoolIds) {
       TableName: TABLE_NAME,
       Key: { PK: keys.schoolPK(id), SK: keys.schoolSK() },
     }));
-    if (result.Item) map[id] = result.Item.name;
+    if (result.Item) map[String(id)] = result.Item.name;
   }
   return map;
 }
@@ -715,6 +786,7 @@ async function createStockAlert(product, newStock) {
  * the original Express/MySQL response format).
  */
 function formatProduct(item, schoolNames = {}) {
+  const sid = item.schoolId ? String(item.schoolId) : null;
   return {
     id:               item.productId,
     name:             item.name,
@@ -727,6 +799,6 @@ function formatProduct(item, schoolNames = {}) {
     size:             item.size,
     school_id:        item.schoolId,
     seller_id:        item.sellerId,
-    school_name:      schoolNames[item.schoolId] || null,
+    school_name:      sid ? (schoolNames[sid] || null) : null,
   };
 }
